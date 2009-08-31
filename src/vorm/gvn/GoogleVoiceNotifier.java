@@ -37,6 +37,8 @@ import org.xml.sax.XMLReader;
 import org.xml.sax.ext.DefaultHandler2;
 import org.xml.sax.helpers.XMLReaderFactory;
 
+import vorm.gvn.Options.ProxyType;
+
 
 public class GoogleVoiceNotifier {
 	private static Image noMsgImage = Toolkit.getDefaultToolkit().getImage("images/google-voice.png");
@@ -47,6 +49,7 @@ public class GoogleVoiceNotifier {
 	private static TrayIcon trayIcon;
 	private static OptionsGUI optGUI = new OptionsGUI();
 	private static Options curOptions;
+	
 	/**
 	 * @param args
 	 */
@@ -126,6 +129,8 @@ public class GoogleVoiceNotifier {
 		}
         catch (Exception e) {
         	e.printStackTrace();
+        } finally {
+            method.releaseConnection();
         }
 	}
 	
@@ -155,6 +160,8 @@ public class GoogleVoiceNotifier {
         }
         catch (Exception e) {
         	e.printStackTrace();
+        } finally {
+            method.releaseConnection();
         }
         
         return out;
@@ -177,6 +184,24 @@ public class GoogleVoiceNotifier {
 	
 	public static void saveOptions(Options newOpts) {
 		curOptions = newOpts;
+		
+		if (curOptions.getProxyType() != null) {
+		    switch (curOptions.getProxyType()) {
+		    case HTTP:  
+		        client.getHostConfiguration().setProxy(
+		                        curOptions.getProxyHost(), curOptions.getProxyPort());
+		        break;
+		    case SOCKS: 
+		        System.setProperty("socksProxyHost", 
+		                        curOptions.getProxyHost());
+		        System.setProperty("socksProxyPort", 
+		                        Integer.toString(curOptions.getProxyPort()));
+		        break;
+		    default:    
+		        break;
+		    }
+		}
+		
 		login(newOpts);
 		setupTimer(newOpts);
 	}
