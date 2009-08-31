@@ -19,7 +19,8 @@ public class OptionsGUI extends JFrame {
 	private JPanel form = new JPanel();
 	private JLabel usrLabel = new JLabel("Email:");
 	private JLabel passLabel = new JLabel("Password:");
-	private JLabel delayLabel = new JLabel("Delay:");
+	private JLabel delayLabel = new JLabel("Delay (in seconds):");
+	private JLabel proxyTypeLabel = new JLabel("Proxy Type");
 	private JTextField usrField = new JTextField(30);
 	private JPasswordField passField = new JPasswordField(30);
 	private JTextField delayField = new JTextField(30);
@@ -46,7 +47,7 @@ public class OptionsGUI extends JFrame {
 	            GoogleVoiceNotifier.saveOptions(
 	            		new Options(usrField.getText(), 
 				            		new String(passField.getPassword()), 
-				            		Long.parseLong(delayField.getText())));
+				            		Long.parseLong(delayField.getText()) * 1000));
 	        }
 		};
 		saveButton.addActionListener(save);
