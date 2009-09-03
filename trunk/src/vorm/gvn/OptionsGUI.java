@@ -4,11 +4,14 @@ import java.awt.GridBagLayout;
 import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
@@ -50,14 +53,23 @@ public class OptionsGUI extends JFrame {
 		
 		ActionListener save = new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-	            setVisible(false);
-	            GoogleVoiceNotifier.saveOptions(
-	            		new Options(usrField.getText(), 
-				            		new String(passField.getPassword()), 
-				            		Long.parseLong(delayField.getText()) * 1000,
-				            		(Options.ProxyType)proxyTypeComboBox.getSelectedItem(),
-				            		proxyHostField.getText(),
-				            		new Integer(proxyPortField.getText())));
+			    List<String> problems;
+			    if ((problems = fieldsValid()).size() == 0) {
+    	            setVisible(false);
+    	            GoogleVoiceNotifier.saveOptions(
+    	            		new Options(usrField.getText(), 
+    				            		new String(passField.getPassword()), 
+    				            		Long.parseLong(delayField.getText()) * 1000,
+    				            		(Options.ProxyType)proxyTypeComboBox.getSelectedItem(),
+    				            		proxyHostField.getText(),
+    				            		new Integer(proxyPortField.getText())));
+			    } else {
+			        String problemString = "";
+			        for (String problem : problems) {
+			            problemString += problem + "\n";
+			        }
+			        JOptionPane.showMessageDialog(OptionsGUI.this, problemString, "Incorrect values", JOptionPane.ERROR_MESSAGE);
+			    }
 	        }
 		};
 		saveButton.addActionListener(save);
@@ -107,5 +119,27 @@ public class OptionsGUI extends JFrame {
 	        }
 	    }
 	    setVisible(true);
+	}
+	
+	public List<String> fieldsValid() {
+	    ArrayList<String> problems = new ArrayList<String>();
+	    try {
+            Long l = Long.parseLong(delayField.getText());
+            if (l < 1) {
+                problems.add("Please enter a delay greater than 0.");
+            }
+        } catch (NumberFormatException e) {
+            problems.add("Delay field doesn't contain an integer.");
+        }
+	    try {
+	        Integer i = Integer.parseInt(proxyPortField.getText());
+	        if (i < 0 || i > 65535) {
+	            problems.add("Please enter a port between 0 and 65535.");
+	        }
+	    } catch (NumberFormatException e) {
+	        problems.add("Proxy Port field doesn't contain an integer.");
+	    }
+	    
+	    return problems;
 	}
 }
