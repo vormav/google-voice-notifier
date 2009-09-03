@@ -233,7 +233,7 @@ public class GoogleVoiceNotifier {
 		    
 		    ActionListener optionsListener = new ActionListener() {
 		        public void actionPerformed(ActionEvent e) {
-		            optGUI.setVisible(true);
+		            optGUI.displayOptions(curOptions);
 		        }
 		    };
 		            
