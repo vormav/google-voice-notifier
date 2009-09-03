@@ -94,7 +94,7 @@ public class OptionsGUI extends JFrame {
 	    if (o != null) {
 	        usrField.setText(o.getUsername());
 	        passField.setText(o.getPassword());
-	        delayField.setText(Long.toString(o.getDelay()));
+	        delayField.setText(Long.toString(o.getDelay()/1000));
 
 	        if (o.getProxyType() == null) {
 	            proxyTypeComboBox.setSelectedIndex(0);
