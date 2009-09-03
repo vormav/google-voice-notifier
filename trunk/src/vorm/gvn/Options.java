@@ -17,7 +17,7 @@ public class Options {
 	private static final String PROXY_HOST_OPTION = "google.voice.proxyHost";
 	private static final String PROXY_PORT_OPTION = "google.voice.proxyPort";
 	
-	public enum ProxyType { SOCKS, HTTP };
+	public enum ProxyType { NONE, SOCKS, HTTP };
 	
 	private String username;
 	private String password;

@@ -33,7 +33,8 @@ public class OptionsGUI extends JFrame {
 	private JButton saveButton = new JButton("Save");
 	private JButton cancelButton = new JButton("Cancel");
 	private JComboBox proxyTypeComboBox = new JComboBox(
-	        new Options.ProxyType[] {null, Options.ProxyType.HTTP, Options.ProxyType.SOCKS});
+	        new Options.ProxyType[] { Options.ProxyType.NONE , 
+	                    Options.ProxyType.HTTP, Options.ProxyType.SOCKS});
 	private JTextField proxyHostField = new JTextField(30);
 	private JTextField proxyPortField = new JTextField(30);
 	
@@ -56,13 +57,19 @@ public class OptionsGUI extends JFrame {
 			    List<String> problems;
 			    if ((problems = fieldsValid()).size() == 0) {
     	            setVisible(false);
-    	            GoogleVoiceNotifier.saveOptions(
-    	            		new Options(usrField.getText(), 
-    				            		new String(passField.getPassword()), 
-    				            		Long.parseLong(delayField.getText()) * 1000,
-    				            		(Options.ProxyType)proxyTypeComboBox.getSelectedItem(),
-    				            		proxyHostField.getText(),
-    				            		new Integer(proxyPortField.getText())));
+    	            if (proxyTypeComboBox.getSelectedItem() == Options.ProxyType.NONE) {
+    	                GoogleVoiceNotifier.saveOptions(new Options(usrField.getText(), 
+                                            new String(passField.getPassword()), 
+                                            Long.parseLong(delayField.getText()) * 1000));
+    	            } else {
+        	            GoogleVoiceNotifier.saveOptions(
+        	            		new Options(usrField.getText(), 
+        				            		new String(passField.getPassword()), 
+        				            		Long.parseLong(delayField.getText()) * 1000,
+        				            		(Options.ProxyType)proxyTypeComboBox.getSelectedItem(),
+        				            		proxyHostField.getText(),
+        				            		new Integer(proxyPortField.getText())));
+        	            }
 			    } else {
 			        String problemString = "";
 			        for (String problem : problems) {
@@ -131,14 +138,16 @@ public class OptionsGUI extends JFrame {
         } catch (NumberFormatException e) {
             problems.add("Delay field doesn't contain an integer.");
         }
-	    try {
-	        Integer i = Integer.parseInt(proxyPortField.getText());
-	        if (i < 0 || i > 65535) {
-	            problems.add("Please enter a port between 0 and 65535.");
-	        }
-	    } catch (NumberFormatException e) {
-	        problems.add("Proxy Port field doesn't contain an integer.");
-	    }
+        if (proxyTypeComboBox.getSelectedItem() != Options.ProxyType.NONE) {
+            try {
+                Integer i = Integer.parseInt(proxyPortField.getText());
+                if (i < 0 || i > 65535) {
+                    problems.add("Please enter a port between 0 and 65535.");
+                }
+            } catch (NumberFormatException e) {
+                problems.add("Proxy Port field doesn't contain an integer.");
+            } 
+        }
 	    
 	    return problems;
 	}
