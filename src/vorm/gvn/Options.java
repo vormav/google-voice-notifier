@@ -31,7 +31,7 @@ public class Options {
 	private Properties prop;
 	
 	public Options(String username, String password, long delay) {
-		this(username, password, delay, null, null, 0);
+		this(username, password, delay, ProxyType.NONE, "", 0);
 	}
 	
 	public Options(String username, String password, long delay, 
@@ -49,7 +49,7 @@ public class Options {
             
             prop.setProperty(USERNAME_OPTION, this.username);
             prop.setProperty(DELAY_OPTION, Long.toString(this.delay));
-            if (proxyType != null) { 
+            if (proxyType != null || proxyType != ProxyType.NONE) { 
                 prop.setProperty(PROXY_TYPE_OPTION, proxyType.toString());
                 prop.setProperty(PROXY_HOST_OPTION, proxyHost);
                 prop.setProperty(PROXY_PORT_OPTION, Integer.toString(proxyPort));
@@ -78,11 +78,14 @@ public class Options {
 			throw new Exception("Username was not in properties file");
 		}
 		this.delay = new Long(prop.getProperty(DELAY_OPTION));
-		
-		this.proxyType = Enum.valueOf(ProxyType.class, prop.getProperty(PROXY_TYPE_OPTION));
-		if (this.proxyType != null) {
-		    this.proxyHost = prop.getProperty(PROXY_HOST_OPTION);
-		    this.proxyPort = new Integer(prop.getProperty(PROXY_PORT_OPTION));
+		try {
+			this.proxyType = Enum.valueOf(ProxyType.class, prop.getProperty(PROXY_TYPE_OPTION));
+			if (this.proxyType != null) {
+				this.proxyHost = prop.getProperty(PROXY_HOST_OPTION);
+				this.proxyPort = new Integer(prop.getProperty(PROXY_PORT_OPTION));
+			}
+		} catch (IllegalArgumentException e) {
+			this.proxyType = ProxyType.NONE;
 		}
 	}
 
