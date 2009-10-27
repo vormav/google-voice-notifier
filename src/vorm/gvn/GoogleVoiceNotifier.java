@@ -22,8 +22,20 @@ import java.util.TimerTask;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPasswordField;
+import javax.xml.namespace.NamespaceContext;
+import javax.xml.namespace.QName;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathExpression;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
+import javax.xml.xpath.XPathFunctionResolver;
+import javax.xml.xpath.XPathVariableResolver;
 
+import org.apache.commons.httpclient.Cookie;
+import org.apache.commons.httpclient.HostConfiguration;
 import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.HttpException;
+import org.apache.commons.httpclient.HttpState;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
@@ -46,6 +58,7 @@ public class GoogleVoiceNotifier {
 
 	private static Timer timer = new Timer();
 	private static HttpClient client = new HttpClient();
+	private static HttpState state = new HttpState();
 	private static TrayIcon trayIcon;
 	private static OptionsGUI optGUI = new OptionsGUI();
 	private static Options curOptions;
@@ -115,13 +128,43 @@ public class GoogleVoiceNotifier {
 	}
 	
 	private static void login(Options options) {
+		GetMethod get = new GetMethod("https://www.google.com/accounts/ServiceLoginAuth?service=grandcentral");
 		PostMethod method = new PostMethod("https://www.google.com/accounts/ServiceLoginAuth?service=grandcentral");
 		method.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-		method.addParameter("Email", options.getUsername());
-		method.addParameter("Passwd", options.getPassword());
+
+		state = new HttpState();
+		String GALX = "";
 		
 		try {
-			int statusCode = client.executeMethod(method);
+			int statusCode = client.executeMethod(client.getHostConfiguration(), get, state);
+			
+			if (statusCode != HttpStatus.SC_OK) {
+	        	System.err.println("Method failed: " + method.getStatusLine());
+	        } else {
+	        	for (Cookie c : state.getCookies()) {
+	        		if (c.getName().equals("GALX")) {
+	        			GALX = c.getValue();
+	        		}
+	        	}
+	        }
+		} catch (HttpException e1) {
+			e1.printStackTrace();
+		} catch (IOException e1) {
+			e1.printStackTrace();
+		}
+		
+		method.addParameter("Email", options.getUsername());
+		method.addParameter("Passwd", options.getPassword());
+		method.addParameter("ltmpl", "bluebar");
+		method.addParameter("service", "grandcentral");
+		//method.addParameter("PersistentCookie", "yes");
+		//method.addParameter("rmShown", "1");
+		method.addParameter("continue", "https://www.google.com/voice/inbox/recent/inbox/");
+		method.addParameter("GALX", GALX);
+		
+		try {
+			int statusCode = client.executeMethod(client.getHostConfiguration(), method, state);
+			
 		        
 	        if (statusCode != HttpStatus.SC_OK) {
 	        	System.err.println("Method failed: " + method.getStatusLine());
@@ -130,38 +173,42 @@ public class GoogleVoiceNotifier {
         catch (Exception e) {
         	e.printStackTrace();
         } finally {
-            method.releaseConnection();
+            //method.releaseConnection();
         }
 	}
 	
 	private static String getInbox() {
 		String out = "";
-		String request = "https://www.google.com/voice/inbox/recent/inbox/";
+		String request = "https://www.google.com/voice/inbox/recent/inbox";
         
         GetMethod method = new GetMethod(request);
         InputStream rstream = null;
         
         try {
 	        // Send GET request
-	        int statusCode = client.executeMethod(method);
+	        int statusCode = client.executeMethod(client.getHostConfiguration(), method, state);
+        	//int statusCode = client.executeMethod(method);
 	        
 	        if (statusCode != HttpStatus.SC_OK) {
 	        	System.err.println("Method failed: " + method.getStatusLine());
 	        }
 	        
 	        // Get the response body
+	        System.out.println(method.getResponseBodyAsString());
 	        rstream = method.getResponseBodyAsStream();
 	        StringBuffer json = new StringBuffer();
 	        XMLReader parser = XMLReaderFactory.createXMLReader();
 	        parser.setContentHandler(new GoogleVoiceNotifier.ResponseHandler(json));
-	        parser.parse(new InputSource(rstream));
+	        //parser.parse(new InputSource(rstream));
+	        XPath xpath = XPathFactory.newInstance().newXPath();
+	        xpath.evaluate("/response/json", rstream);
 	        
 	        out = json.toString();
         }
         catch (Exception e) {
         	e.printStackTrace();
         } finally {
-            method.releaseConnection();
+            //method.releaseConnection();
         }
         
         return out;
