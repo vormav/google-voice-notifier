@@ -10,50 +10,63 @@ import java.awt.Toolkit;
 import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.Iterator;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPasswordField;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathFactory;
 
 import org.apache.commons.httpclient.HttpClient;
+import org.apache.commons.httpclient.HttpException;
+import org.apache.commons.httpclient.HttpState;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
+import org.apache.commons.logging.LogFactory;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
-import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-import org.xml.sax.XMLReader;
-import org.xml.sax.ext.DefaultHandler2;
-import org.xml.sax.helpers.XMLReaderFactory;
-
-import vorm.gvn.Options.ProxyType;
 
 
 public class GoogleVoiceNotifier {
+	
+	private static int currentMajorVersionNumber = 1;
+	private static int currentMinorVersionNumber = 5;
+	private static String currentSubMinorVersionCharacter = "";
+	private static String versionRegex = "Current Version=(\\d+)\\.(\\d+)(\\w?)";
 	private static Image noMsgImage = Toolkit.getDefaultToolkit().getImage("images/google-voice.png");
 	private static Image newMsgImage = Toolkit.getDefaultToolkit().getImage("images/google-voice-new-msg.png");
 
 	private static Timer timer = new Timer();
+	private static Timer updateTimer = new Timer();
 	private static HttpClient client = new HttpClient();
+	private static HttpState state = new HttpState();
 	private static TrayIcon trayIcon;
 	private static OptionsGUI optGUI = new OptionsGUI();
 	private static Options curOptions;
+	
+	private static String auth = "";
 	
 	/**
 	 * @param args
 	 */
 	public static void main(String[] args) {
+		System.out.println(LogFactory.FACTORY_PROPERTIES);
 		URL imgURL = GoogleVoiceNotifier.class.getResource("images/google-voice.png");
 		noMsgImage = Toolkit.getDefaultToolkit().getImage(imgURL);
 		imgURL = GoogleVoiceNotifier.class.getResource("images/google-voice-new-msg.png");
@@ -78,6 +91,7 @@ public class GoogleVoiceNotifier {
 		JLabel label = new JLabel("Please enter the password for the google voice account: " + o.getUsername());
 		JPasswordField pass = new JPasswordField();
 		Object[] array = { label, pass };
+		pass.requestFocusInWindow();
 		
 		int res = JOptionPane.showConfirmDialog(null, array, 
 								"Password for " + o.getUsername(),
@@ -89,6 +103,7 @@ public class GoogleVoiceNotifier {
 		} else {
 			return null;
 		}
+		
 		return new String(password);
 	}
 
@@ -115,53 +130,69 @@ public class GoogleVoiceNotifier {
 	}
 	
 	private static void login(Options options) {
-		PostMethod method = new PostMethod("https://www.google.com/accounts/ServiceLoginAuth?service=grandcentral");
-		method.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+		PostMethod method = new PostMethod("https://www.google.com/accounts/ClientLogin");
+		method.setRequestHeader("Content-Type", "application/x-www-form-urlencoded;charset=utf-8");
+		method.setRequestHeader("User-Agent","google-voice-notifier");
+
+		state = new HttpState();
+		
+		method.addParameter("accountType", "HOSTED_OR_GOOGLE");
 		method.addParameter("Email", options.getUsername());
 		method.addParameter("Passwd", options.getPassword());
+		method.addParameter("service", "grandcentral");
+		method.addParameter("source", "google-voice-notifier");
 		
 		try {
-			int statusCode = client.executeMethod(method);
-		        
-	        if (statusCode != HttpStatus.SC_OK) {
-	        	System.err.println("Method failed: " + method.getStatusLine());
-	        }
+			int statusCode = client.executeMethod(client.getHostConfiguration(), method, state);
+
+			if (statusCode != HttpStatus.SC_OK) {
+				System.err.println("Method failed: " + method.getStatusLine());
+			} else {
+				BufferedReader br = new BufferedReader(new InputStreamReader(method.getResponseBodyAsStream()));
+				String line = null;
+				while ((line = br.readLine()) != null) {
+					if (line.contains("Auth=")) {
+						auth = line.split("=", 2)[1].trim();
+						//System.out.println("AUTH TOKEN =" + auth);
+					}
+				}
+			}
 		}
         catch (Exception e) {
         	e.printStackTrace();
         } finally {
-            method.releaseConnection();
+        	method.releaseConnection();
         }
 	}
 	
 	private static String getInbox() {
 		String out = "";
-		String request = "https://www.google.com/voice/inbox/recent/inbox/";
+		String request = "https://www.google.com/voice/inbox/recent/inbox";
+		try {
+			request += "?auth=" + URLEncoder.encode(auth,"UTF-8");
+		} catch (UnsupportedEncodingException e1) {
+			e1.printStackTrace();
+		}
         
         GetMethod method = new GetMethod(request);
-        InputStream rstream = null;
         
         try {
 	        // Send GET request
-	        int statusCode = client.executeMethod(method);
+	        int statusCode = client.executeMethod(client.getHostConfiguration(), method, state);
 	        
 	        if (statusCode != HttpStatus.SC_OK) {
 	        	System.err.println("Method failed: " + method.getStatusLine());
 	        }
 	        
 	        // Get the response body
-	        rstream = method.getResponseBodyAsStream();
-	        StringBuffer json = new StringBuffer();
-	        XMLReader parser = XMLReaderFactory.createXMLReader();
-	        parser.setContentHandler(new GoogleVoiceNotifier.ResponseHandler(json));
-	        parser.parse(new InputSource(rstream));
-	        
-	        out = json.toString();
+	        XPath xpath = XPathFactory.newInstance().newXPath();
+	        InputSource isource = new InputSource(method.getResponseBodyAsStream());
+	        out = xpath.evaluate("/response/json", isource);
         }
         catch (Exception e) {
         	e.printStackTrace();
         } finally {
-            method.releaseConnection();
+        	method.releaseConnection();
         }
         
         return out;
@@ -180,6 +211,30 @@ public class GoogleVoiceNotifier {
     	else {
     		trayIcon.setImage(noMsgImage);
     	}
+	}
+	
+	private static void checkForUpdates() {
+		GetMethod method = new GetMethod("http://code.google.com/p/google-voice-notifier/");
+		try {
+			client.executeMethod(method);
+			
+			String body = method.getResponseBodyAsString();
+			Pattern p = Pattern.compile(versionRegex);
+			Matcher m = p.matcher(body);
+			if (m.find()) {
+				if ((Integer.parseInt(m.group(1)) > currentMajorVersionNumber) ||
+					(Integer.parseInt(m.group(2)) > currentMinorVersionNumber) || 
+					(m.group(3).compareTo(currentSubMinorVersionCharacter) < 0)) {
+					JOptionPane.showMessageDialog(null, "There is a new Version!\nGoto http://code.google.com/p/google-voice-notifier/ to get the new version!");
+				}
+			}
+		} catch (HttpException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			method.releaseConnection();
+		}
 	}
 	
 	public static void saveOptions(Options newOpts) {
@@ -203,19 +258,30 @@ public class GoogleVoiceNotifier {
 		}
 		
 		login(newOpts);
-		setupTimer(newOpts);
+		setupTimers(newOpts);
 	}
 	
-	private static void setupTimer(Options opts) {
+	private static void setupTimers(Options opts) {
 		TimerTask task = new TimerTask() {
         	public void run() {
         		checkAndDisplayMessages();
+        	}
+        };
+        
+        TimerTask checkForUpdates = new TimerTask() {
+        	public void run() {
+        		checkForUpdates();
         	}
         };
         timer.cancel();
         timer.purge();
         timer = new Timer();
         timer.scheduleAtFixedRate(task, 0, opts.getDelay());
+        
+        updateTimer.cancel();
+        updateTimer.purge();
+        updateTimer = new Timer();
+        updateTimer.scheduleAtFixedRate(checkForUpdates, 0, 1000*60*60*24);
 	}
 	
 	private static void setupSystrayIcon() {
@@ -273,7 +339,7 @@ public class GoogleVoiceNotifier {
 		        tray.add(trayIcon);
 		        if(curOptions != null) {
 		    		login(curOptions);
-		    		setupTimer(curOptions);
+		    		setupTimers(curOptions);
 		    	}
 		        
 		    } catch (AWTException e) {
@@ -286,53 +352,6 @@ public class GoogleVoiceNotifier {
 
 		}
 
-	}
-	
-	private static class ResponseHandler extends DefaultHandler2 {
-		private boolean inJSON = false;
-		private StringBuffer data;
-		
-		public ResponseHandler(StringBuffer data) {
-			this.data = data;
-		}
-		
-		@Override
-		public void endCDATA() throws SAXException {
-			super.endCDATA();
-		}
-
-		@Override
-		public void startCDATA() throws SAXException {
-			super.startCDATA();
-		}
-		
-		@Override
-		public void characters(char[] ch, int start, int length)
-				throws SAXException {
-			if (/*inCDATA && */inJSON) {
-				data.append(ch);
-			}
-			super.characters(ch, start, length);
-		}
-
-		@Override
-		public void endElement(String uri, String localName, String qName)
-				throws SAXException {
-			if (qName.equals("json")) {
-				inJSON = false;
-			}
-			super.endElement(uri, localName, qName);
-		}
-
-		@Override
-		public void startElement(String uri, String localName, String qName,
-				Attributes attributes) throws SAXException {
-			if (qName.equals("json")) {
-				inJSON = true;
-			}
-			super.startElement(uri, localName, qName, attributes);
-		}
-		
 	}
 
 }
