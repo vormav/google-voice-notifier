@@ -10,11 +10,15 @@ import java.awt.Toolkit;
 import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.Iterator;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -39,6 +43,8 @@ import org.apache.commons.httpclient.HttpState;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -63,10 +69,13 @@ public class GoogleVoiceNotifier {
 	private static OptionsGUI optGUI = new OptionsGUI();
 	private static Options curOptions;
 	
+	private static String auth = "";
+	
 	/**
 	 * @param args
 	 */
 	public static void main(String[] args) {
+		System.out.println(LogFactory.FACTORY_PROPERTIES);
 		URL imgURL = GoogleVoiceNotifier.class.getResource("images/google-voice.png");
 		noMsgImage = Toolkit.getDefaultToolkit().getImage(imgURL);
 		imgURL = GoogleVoiceNotifier.class.getResource("images/google-voice-new-msg.png");
@@ -128,14 +137,15 @@ public class GoogleVoiceNotifier {
 	}
 	
 	private static void login(Options options) {
-		GetMethod get = new GetMethod("https://www.google.com/accounts/ServiceLoginAuth?service=grandcentral");
-		PostMethod method = new PostMethod("https://www.google.com/accounts/ServiceLoginAuth?service=grandcentral");
-		method.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+		//GetMethod get = new GetMethod("https://www.google.com/accounts/ClientLogin");
+		PostMethod method = new PostMethod("https://www.google.com/accounts/ClientLogin");
+		method.setRequestHeader("Content-Type", "application/x-www-form-urlencoded;charset=utf-8");
+		method.setRequestHeader("User-Agent","google-voice-notifier");
 
 		state = new HttpState();
 		String GALX = "";
 		
-		try {
+		/*try {
 			int statusCode = client.executeMethod(client.getHostConfiguration(), get, state);
 			
 			if (statusCode != HttpStatus.SC_OK) {
@@ -151,24 +161,36 @@ public class GoogleVoiceNotifier {
 			e1.printStackTrace();
 		} catch (IOException e1) {
 			e1.printStackTrace();
-		}
+		}*/
 		
+		method.addParameter("accountType", "HOSTED_OR_GOOGLE");
 		method.addParameter("Email", options.getUsername());
 		method.addParameter("Passwd", options.getPassword());
-		method.addParameter("ltmpl", "bluebar");
 		method.addParameter("service", "grandcentral");
+		method.addParameter("source", "google-voice-notifier");
+		//method.addParameter("ltmpl", "bluebar");
 		//method.addParameter("PersistentCookie", "yes");
 		//method.addParameter("rmShown", "1");
-		method.addParameter("continue", "https://www.google.com/voice/inbox/recent/inbox/");
-		method.addParameter("GALX", GALX);
+		//method.addParameter("continue", "https://www.google.com/voice/inbox/recent/inbox/");
+		//method.addParameter("GALX", GALX);
 		
 		try {
 			int statusCode = client.executeMethod(client.getHostConfiguration(), method, state);
-			
-		        
-	        if (statusCode != HttpStatus.SC_OK) {
-	        	System.err.println("Method failed: " + method.getStatusLine());
-	        }
+			HttpState _state = state;
+
+			if (statusCode != HttpStatus.SC_OK) {
+				System.err.println("Method failed: " + method.getStatusLine());
+			} else {
+				BufferedReader br = new BufferedReader(new InputStreamReader(method.getResponseBodyAsStream()));
+				String line = null;
+				while ((line = br.readLine()) != null) {
+					if (line.contains("Auth=")) {
+						auth = line.split("=", 2)[1].trim();
+						System.out.println("AUTH TOKEN =" + auth);
+					}
+				}
+
+			}
 		}
         catch (Exception e) {
         	e.printStackTrace();
@@ -180,13 +202,18 @@ public class GoogleVoiceNotifier {
 	private static String getInbox() {
 		String out = "";
 		String request = "https://www.google.com/voice/inbox/recent/inbox";
+		try {
+			request += "?auth=" + URLEncoder.encode(auth,"UTF-8");
+		} catch (UnsupportedEncodingException e1) {
+			e1.printStackTrace();
+		}
         
         GetMethod method = new GetMethod(request);
-        InputStream rstream = null;
         
         try {
 	        // Send GET request
 	        int statusCode = client.executeMethod(client.getHostConfiguration(), method, state);
+	        
         	//int statusCode = client.executeMethod(method);
 	        
 	        if (statusCode != HttpStatus.SC_OK) {
@@ -194,16 +221,9 @@ public class GoogleVoiceNotifier {
 	        }
 	        
 	        // Get the response body
-	        System.out.println(method.getResponseBodyAsString());
-	        rstream = method.getResponseBodyAsStream();
-	        StringBuffer json = new StringBuffer();
-	        XMLReader parser = XMLReaderFactory.createXMLReader();
-	        parser.setContentHandler(new GoogleVoiceNotifier.ResponseHandler(json));
-	        //parser.parse(new InputSource(rstream));
 	        XPath xpath = XPathFactory.newInstance().newXPath();
-	        xpath.evaluate("/response/json", rstream);
-	        
-	        out = json.toString();
+	        InputSource isource = new InputSource(method.getResponseBodyAsStream());
+	        out = xpath.evaluate("/response/json", isource);
         }
         catch (Exception e) {
         	e.printStackTrace();
@@ -333,53 +353,6 @@ public class GoogleVoiceNotifier {
 
 		}
 
-	}
-	
-	private static class ResponseHandler extends DefaultHandler2 {
-		private boolean inJSON = false;
-		private StringBuffer data;
-		
-		public ResponseHandler(StringBuffer data) {
-			this.data = data;
-		}
-		
-		@Override
-		public void endCDATA() throws SAXException {
-			super.endCDATA();
-		}
-
-		@Override
-		public void startCDATA() throws SAXException {
-			super.startCDATA();
-		}
-		
-		@Override
-		public void characters(char[] ch, int start, int length)
-				throws SAXException {
-			if (/*inCDATA && */inJSON) {
-				data.append(ch);
-			}
-			super.characters(ch, start, length);
-		}
-
-		@Override
-		public void endElement(String uri, String localName, String qName)
-				throws SAXException {
-			if (qName.equals("json")) {
-				inJSON = false;
-			}
-			super.endElement(uri, localName, qName);
-		}
-
-		@Override
-		public void startElement(String uri, String localName, String qName,
-				Attributes attributes) throws SAXException {
-			if (qName.equals("json")) {
-				inJSON = true;
-			}
-			super.startElement(uri, localName, qName, attributes);
-		}
-		
 	}
 
 }
