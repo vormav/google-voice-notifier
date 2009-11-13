@@ -5,7 +5,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Properties;
 
 public class Options {
@@ -16,6 +15,7 @@ public class Options {
 	private static final String PROXY_TYPE_OPTION = "google.voice.proxyType";
 	private static final String PROXY_HOST_OPTION = "google.voice.proxyHost";
 	private static final String PROXY_PORT_OPTION = "google.voice.proxyPort";
+	private static final String CHECK_FOR_UPDATES_OPTION = "google.voice.checkForUpdates";
 	
 	public enum ProxyType { NONE, SOCKS, HTTP };
 	
@@ -28,20 +28,23 @@ public class Options {
 	
 	private long delay;
 	
+	private boolean checkForUpdates;
+	
 	private Properties prop;
 	
 	public Options(String username, String password, long delay) {
-		this(username, password, delay, ProxyType.NONE, "", 0);
+		this(username, password, delay, ProxyType.NONE, "", 1080, true);
 	}
 	
 	public Options(String username, String password, long delay, 
-	                        ProxyType type, String host, int port) {
+	                        ProxyType type, String host, int port, boolean checkForUpdates) {
 	    this.username  = username;
         this.password  = password;
         this.delay     = delay;
         this.proxyHost = host;
         this.proxyType = type;
         this.proxyPort = port;
+        this.checkForUpdates = checkForUpdates;
         
         prop = new Properties();
         try {
@@ -54,6 +57,8 @@ public class Options {
                 prop.setProperty(PROXY_HOST_OPTION, proxyHost);
                 prop.setProperty(PROXY_PORT_OPTION, Integer.toString(proxyPort));
             }
+            
+            prop.setProperty(CHECK_FOR_UPDATES_OPTION, Boolean.toString(checkForUpdates));
             
             prop.store(new FileOutputStream(f) , "");
         } catch (FileNotFoundException e) {
@@ -87,6 +92,16 @@ public class Options {
 		} catch (IllegalArgumentException e) {
 			this.proxyType = ProxyType.NONE;
 		}
+		
+		try {
+			this.checkForUpdates = Boolean.parseBoolean((String)prop.get(CHECK_FOR_UPDATES_OPTION));
+		} catch (IllegalArgumentException e) {
+			this.checkForUpdates = true;
+		}
+	}
+	
+	public static Options getDefaultOptions() {
+		return new Options("","",60000,ProxyType.NONE,"",1080,true);
 	}
 
 	public String getUsername() {
@@ -140,4 +155,12 @@ public class Options {
     public int getProxyPort() {
         return proxyPort;
     }
+
+	public boolean isCheckForUpdates() {
+		return checkForUpdates;
+	}
+
+	public void setCheckForUpdates(boolean checkForUpdates) {
+		this.checkForUpdates = checkForUpdates;
+	}
 }

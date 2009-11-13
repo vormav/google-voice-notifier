@@ -46,7 +46,7 @@ import org.xml.sax.InputSource;
 public class GoogleVoiceNotifier {
 	
 	private static int currentMajorVersionNumber = 1;
-	private static int currentMinorVersionNumber = 5;
+	private static int currentMinorVersionNumber = 3;
 	private static String currentSubMinorVersionCharacter = "";
 	private static String versionRegex = "Current Version=(\\d+)\\.(\\d+)(\\w?)";
 	private static Image noMsgImage = Toolkit.getDefaultToolkit().getImage("images/google-voice.png");
@@ -78,11 +78,11 @@ public class GoogleVoiceNotifier {
 			String passwd = getPassword(o);
 			if (passwd == null) {
 				throw new Exception("User entered a null password");
-			}
-			o.setPassword(passwd);
+			}			o.setPassword(passwd);
 			saveOptions(o);
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
+			optGUI.displayOptions(Options.getDefaultOptions());
 		}
 	}
 	
@@ -214,26 +214,29 @@ public class GoogleVoiceNotifier {
 	}
 	
 	private static void checkForUpdates() {
-		GetMethod method = new GetMethod("http://code.google.com/p/google-voice-notifier/");
-		try {
-			client.executeMethod(method);
-			
-			String body = method.getResponseBodyAsString();
-			Pattern p = Pattern.compile(versionRegex);
-			Matcher m = p.matcher(body);
-			if (m.find()) {
-				if ((Integer.parseInt(m.group(1)) > currentMajorVersionNumber) ||
-					(Integer.parseInt(m.group(2)) > currentMinorVersionNumber) || 
-					(m.group(3).compareTo(currentSubMinorVersionCharacter) < 0)) {
-					JOptionPane.showMessageDialog(null, "There is a new Version!\nGoto http://code.google.com/p/google-voice-notifier/ to get the new version!");
+		if(curOptions.isCheckForUpdates()) {
+			GetMethod method = new GetMethod("http://code.google.com/p/google-voice-notifier/");
+			try {
+				client.executeMethod(method);
+				
+				String body = method.getResponseBodyAsString();
+				Pattern p = Pattern.compile(versionRegex);
+				Matcher m = p.matcher(body);
+				
+				if (m.find()) {
+					if ((Integer.parseInt(m.group(1)) > currentMajorVersionNumber) ||
+						(Integer.parseInt(m.group(2)) > currentMinorVersionNumber) || 
+						(m.group(3).compareTo(currentSubMinorVersionCharacter) > 0)) {
+						JOptionPane.showMessageDialog(null, "There is a new Version!\nGoto http://code.google.com/p/google-voice-notifier/ to get the new version!");
+					}
 				}
+			} catch (HttpException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			} finally {
+				method.releaseConnection();
 			}
-		} catch (HttpException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} finally {
-			method.releaseConnection();
 		}
 	}
 	
@@ -281,7 +284,7 @@ public class GoogleVoiceNotifier {
         updateTimer.cancel();
         updateTimer.purge();
         updateTimer = new Timer();
-        updateTimer.scheduleAtFixedRate(checkForUpdates, 0, 1000*60*60*24);
+        updateTimer.scheduleAtFixedRate(checkForUpdates, 0, 1000*60*60*24);// Once a day.
 	}
 	
 	private static void setupSystrayIcon() {
@@ -340,6 +343,7 @@ public class GoogleVoiceNotifier {
 		        if(curOptions != null) {
 		    		login(curOptions);
 		    		setupTimers(curOptions);
+		    		checkForUpdates();
 		    	}
 		        
 		    } catch (AWTException e) {

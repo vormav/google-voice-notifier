@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -27,6 +28,7 @@ public class OptionsGUI extends JFrame {
 	private JLabel proxyTypeLabel = new JLabel("Proxy Type:");
 	private JLabel proxyHostLabel = new JLabel("Proxy Host:");
 	private JLabel proxyPortLabel = new JLabel("Proxy Port:");
+	private JLabel checkForUpdatesLabel = new JLabel("Check for Updates:");
 	private JTextField usrField = new JTextField(30);
 	private JPasswordField passField = new JPasswordField(30);
 	private JTextField delayField = new JTextField(30);
@@ -37,11 +39,12 @@ public class OptionsGUI extends JFrame {
 	                    Options.ProxyType.HTTP, Options.ProxyType.SOCKS});
 	private JTextField proxyHostField = new JTextField(30);
 	private JTextField proxyPortField = new JTextField(30);
+	private JCheckBox checkForUpdatesCheckBox = new JCheckBox();
 	
 	
 	public OptionsGUI() {
 		setTitle("GV Nofier Options");
-		setSize(300, 200); // The GUI dimensions
+		setSize(310, 240); // The GUI dimensions
 		setLocation(new Point(150, 150)); //The GUI position
 		setDefaultCloseOperation(WindowConstants.HIDE_ON_CLOSE);
 
@@ -51,6 +54,16 @@ public class OptionsGUI extends JFrame {
 	        }
 		};
 		cancelButton.addActionListener(cancel);
+		
+		ActionListener proxyChange = new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				//Enable the proxy input fields based on the combobox selection.
+	            boolean enabled = (Options.ProxyType)proxyTypeComboBox.getSelectedItem() != Options.ProxyType.NONE;
+	            proxyHostField.setEnabled(enabled);
+	            proxyPortField.setEnabled(enabled);
+	        }
+		};
+		proxyTypeComboBox.addActionListener(proxyChange);
 		
 		ActionListener save = new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
@@ -68,7 +81,9 @@ public class OptionsGUI extends JFrame {
         				            		Long.parseLong(delayField.getText()) * 1000,
         				            		(Options.ProxyType)proxyTypeComboBox.getSelectedItem(),
         				            		proxyHostField.getText(),
-        				            		new Integer(proxyPortField.getText())));
+        				            		new Integer(proxyPortField.getText()),
+        				            		checkForUpdatesCheckBox.isSelected())
+        	            		);
         	            }
 			    } else {
 			        String problemString = "";
@@ -102,6 +117,9 @@ public class OptionsGUI extends JFrame {
         formUtility.addLabel(proxyPortLabel, form);
         formUtility.addLastField(proxyPortField, form);
         
+        formUtility.addLabel(checkForUpdatesLabel, form);
+        formUtility.addLastField(checkForUpdatesCheckBox, form);
+        
         formUtility.addLabel("", form);
         formUtility.addMiddleField(saveButton, form);
         formUtility.addMiddleField(cancelButton, form);
@@ -124,6 +142,8 @@ public class OptionsGUI extends JFrame {
 	            proxyHostField.setText(o.getProxyHost());
 	            proxyPortField.setText(Integer.toString(o.getProxyPort()));
 	        }
+	        
+	        checkForUpdatesCheckBox.setSelected(o.isCheckForUpdates());
 	    }
 	    setVisible(true);
 	}
